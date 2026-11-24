@@ -109,7 +109,7 @@ button:disabled { background: #e6ebf4; color: #475873; cursor: default; }
 <section><h2>選擇照片</h2><label class="drop"><strong>＋ 點一下選取照片</strong><span id="photo-help">可一次選取多張照片</span><input id="photos" type="file" accept="image/*" aria-label="選取照片" aria-describedby="photo-help" multiple></label><p class="hint" id="picked">尚未選擇照片。</p><p class="hint">單張圖片建議不超過 20 MB；大量照片可能受到手機記憶體限制。</p></section>
 <section><h2>輸出設定</h2><div class="grid"><div class="field"><label for="maxwidth">最大邊長</label><select id="maxwidth"><option value="0">保持原尺寸</option><option value="2048">2048 px</option><option value="1600" selected>1600 px</option><option value="1200">1200 px</option><option value="800">800 px</option></select></div><div class="field"><label for="format">輸出格式</label><select id="format"><option value="image/jpeg">JPG（較小、無透明）</option><option value="image/webp">WebP（支援時）</option><option value="image/png">PNG（支援透明）</option></select></div></div><div class="field quality-field"><label for="quality">壓縮品質：<output id="qualityText">80%</output></label><input type="range" id="quality" min="30" max="100" value="80" step="5"><div class="hint">適用 JPG / WebP。PNG 通常不依品質滑桿壓縮；輸出不一定比原圖小。</div></div><div class="buttons"><button id="run" disabled>開始處理</button><button id="clear" class="secondary" type="button">清除資料</button></div><p class="status" role="status" aria-live="polite" id="status">選擇照片後就能開始。</p></section>
 <section><h2>處理結果</h2><div id="results" class="files"><p class="hint">完成後，這裡會出現每張照片的下載連結。iPhone 可點開下載或透過分享選單儲存至「照片／檔案」。</p></div></section>
-<p class="foot">小步工具所 · v0.2<br>部分 HEIC 照片的讀取取決於瀏覽器支援。</p>
+<p class="foot">小步工具所 · v0.3<br>部分 HEIC 照片的讀取取決於瀏覽器支援。</p>
 </main><script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -119,10 +119,133 @@ const readableSize=n=>n>=1048576?(n/1048576).toFixed(2)+' MB':(n/1024).toFixed(1
 function dispose(){for(const url of urls)URL.revokeObjectURL(url);urls.clear();results.replaceChildren();}
 function alertStatus(s){status.textContent=s;}
 $('quality').addEventListener('input',()=>{$('qualityText').textContent=$('quality').value+'%';});
-picker.addEventListener('change',()=>{dispose();const files=[...picker.files];$('picked').textContent=files.length?`已選擇 ${files.length} 張照片，合計 ${readableSize(files.reduce((n,f)=>n+f.size,0))}`:'尚未選擇照片';run.disabled=!files.length;alertStatus(files.length?'設定完成後，點「開始處理」。':'選擇照片後就能開始。');});
-$('clear').addEventListener('click',()=>{picker.value='';dispose();run.disabled=true;$('picked').textContent='尚未選擇照片';alertStatus('已清除此次選擇與處理結果。');});
+let selectionVersion = 0;
+// Wait for an in-flight browser encode to finish before allocating another canvas.
+let processing = Promise.resolve();
+
+function invalidateSelection() {
+  selectionVersion++;
+  dispose();
+}
+
+picker.addEventListener('change', () => {
+  invalidateSelection();
+  const files = [...picker.files];
+  const size = files.reduce((total, file) => total + file.size, 0);
+  $('picked').textContent = files.length
+    ? `已選擇 ${files.length} 張照片，合計 ${readableSize(size)}`
+    : '尚未選擇照片';
+  run.disabled = !files.length;
+  alertStatus(files.length ? '設定完成後，點「開始處理」。' : '選擇照片後就能開始。');
+});
+
+$('clear').addEventListener('click', () => {
+  invalidateSelection();
+  picker.value = '';
+  run.disabled = true;
+  $('picked').textContent = '尚未選擇照片';
+  alertStatus('已清除此次選擇與處理結果。');
+});
+
 function loadImage(file){return new Promise((resolve,reject)=>{const src=URL.createObjectURL(file);const img=new Image();img.onload=()=>{URL.revokeObjectURL(src);resolve(img);};img.onerror=()=>{URL.revokeObjectURL(src);reject(new Error('無法讀取此圖片格式'));};img.src=src;});}
 function toBlob(canvas,type,quality){return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('瀏覽器無法輸出圖片')),type,quality));}
-async function processOne(file,type,maxDim,quality){const img=await loadImage(file);const scale=maxDim?Math.min(1,maxDim/Math.max(img.naturalWidth,img.naturalHeight)):1;const w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale));const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d');if(!ctx)throw new Error('記憶體不足或無法建立畫布');if(type==='image/jpeg'){ctx.fillStyle='#ffffff';ctx.fillRect(0,0,w,h);}ctx.drawImage(img,0,0,w,h);const blob=await toBlob(canvas,type,quality);canvas.width=canvas.height=0;const actualType=blob.type||type;const ext=actualType==='image/png'?'png':actualType==='image/webp'?'webp':'jpg';return {blob,w,h,ext,actualType};}
-run.addEventListener('click',async()=>{const files=[...picker.files];if(!files.length)return;run.disabled=true;dispose();const type=$('format').value,maxDim=Number($('maxwidth').value),quality=Number($('quality').value)/100;let ok=0,failed=0;for(let i=0;i<files.length;i++){const file=files[i];alertStatus(`處理中 ${i+1}/${files.length}：${file.name}`);await new Promise(resolve=>setTimeout(resolve,0));try{const out=await processOne(file,type,maxDim,quality);const url=URL.createObjectURL(out.blob);urls.add(url);const item=document.createElement('div');item.className='item';const thumb=document.createElement('img');thumb.className='thumb';thumb.src=url;thumb.alt='處理後圖片預覽';const content=document.createElement('div');const name=document.createElement('div');name.className='name';name.textContent=file.name;const meta=document.createElement('div');meta.className='meta';const pct=file.size?((out.blob.size-file.size)/file.size*100).toFixed(1):'0';meta.textContent=`${out.w}×${out.h} ｜ ${readableSize(file.size)} → ${readableSize(out.blob.size)} ｜ ${Number(pct)>0?'增加':'變化'} ${Math.abs(Number(pct))}%`;const link=document.createElement('a');link.className='download';link.href=url;link.download=(file.name.replace(/\.[^.]+$/,'')||'photo')+'_little-step.'+out.ext;link.textContent='下載圖片';content.append(name,meta,link);item.append(thumb,content);results.append(item);ok++;}catch(e){failed++;const p=document.createElement('p');p.className='hint';p.textContent=`${file.name}：${e.message}`;results.append(p);}}alertStatus(`處理完成：成功 ${ok} 張，失敗 ${failed} 張。${ok?'請點選個別下載連結。':''}`);run.disabled=false;});
+
+async function processOne(file, type, maxDim, quality, version) {
+  const img = await loadImage(file);
+  const canvas = document.createElement('canvas');
+  try {
+    if (version !== selectionVersion) return;
+    const scale = maxDim ? Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight)) : 1;
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('記憶體不足或無法建立畫布');
+    if (type === 'image/jpeg') {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+    }
+    ctx.drawImage(img, 0, 0, w, h);
+    img.removeAttribute('src');
+    const blob = await toBlob(canvas, type, quality);
+    const actualType = blob.type || type;
+    const ext = actualType === 'image/png' ? 'png' : actualType === 'image/webp' ? 'webp' : 'jpg';
+    return {blob, w, h, ext};
+  } finally {
+    canvas.width = canvas.height = 0;
+    img.removeAttribute('src');
+  }
+}
+
+function appendResult(file, out) {
+  const url=URL.createObjectURL(out.blob);
+  urls.add(url);
+  const item=document.createElement('div');
+  item.className='item';
+  const thumb=document.createElement('img');
+  thumb.className='thumb';
+  thumb.loading='lazy';
+  thumb.src=url;
+  thumb.alt='處理後圖片預覽';
+  const content=document.createElement('div');
+  const name=document.createElement('div');
+  name.className='name';
+  name.textContent=file.name;
+  const meta=document.createElement('div');
+  meta.className='meta';
+  const pct=file.size?((out.blob.size-file.size)/file.size*100).toFixed(1):'0';
+  meta.textContent=`${out.w}×${out.h} ｜ ${readableSize(file.size)} → ${readableSize(out.blob.size)} ｜ ${Number(pct)>0?'增加':'變化'} ${Math.abs(Number(pct))}%`;
+  const link=document.createElement('a');
+  link.className='download';
+  link.href=url;
+  link.download=(file.name.replace(/\.[^.]+$/,'')||'photo')+'_little-step.'+out.ext;
+  link.textContent='下載圖片';
+  content.append(name,meta,link);
+  item.append(thumb,content);
+  results.append(item);
+}
+
+async function processBatch(files, type, maxDim, quality, version) {
+  let ok = 0;
+  let failed = 0;
+  try {
+    for (const [index, file] of files.entries()) {
+      if (version !== selectionVersion) return;
+      alertStatus(`處理中 ${index + 1}/${files.length}：${file.name}`);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      if (version !== selectionVersion) return;
+      try {
+        const out = await processOne(file, type, maxDim, quality, version);
+        if (version !== selectionVersion) return;
+        appendResult(file, out);
+        ok++;
+      } catch (error) {
+        if (version !== selectionVersion) return;
+        failed++;
+        const message = document.createElement('p');
+        message.className = 'hint';
+        message.textContent = `${file.name}：${error.message}`;
+        results.append(message);
+      }
+    }
+    alertStatus(`處理完成：成功 ${ok} 張，失敗 ${failed} 張。${ok ? '請點選個別下載連結。' : ''}`);
+  } finally {
+    if (version === selectionVersion) run.disabled = !picker.files.length;
+  }
+}
+
+run.addEventListener('click', () => {
+  const files = [...picker.files];
+  if (run.disabled || !files.length) return;
+  run.disabled = true;
+  dispose();
+  const version = selectionVersion;
+  const type = $('format').value;
+  const maxDim = Number($('maxwidth').value);
+  const quality = Number($('quality').value) / 100;
+  alertStatus('準備處理照片…');
+  const start = () => processBatch(files, type, maxDim, quality, version);
+  processing = processing.then(start, start);
+});
 </script></body></html>
