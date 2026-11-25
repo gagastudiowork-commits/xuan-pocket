@@ -48,7 +48,7 @@ p { color: #3c4e6b; margin: 8px 0; }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .field label { font-weight: 650; }
-.field select {
+.field select, #size-limit {
   min-height: 48px;
   width: 100%;
   padding: 8px 10px;
@@ -96,6 +96,9 @@ button:disabled { background: #e6ebf4; color: #475873; cursor: default; }
 .thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; background: #f2f5fa; }
 .name { font-weight: 700; }
 .meta { margin-top: 4px; }
+.spec-result { margin-top: 8px; font-weight: 650; overflow-wrap: anywhere; }
+.spec-result[data-pass="true"] { color: #215a40; }
+.spec-result[data-pass="false"] { color: #903b21; }
 .download { margin-top: 8px; }
 .foot { text-align: center; }
 @media (max-width: 520px) {
@@ -107,9 +110,22 @@ button:disabled { background: #e6ebf4; color: #475873; cursor: default; }
 <body><main>
 <header class="hero"><div class="eyebrow">小步工具所</div><h1>小步影像</h1><p>一次壓縮多張照片、調整尺寸。照片在你的裝置上處理。</p></header>
 <section><h2>選擇照片</h2><label class="drop"><strong>＋ 點一下選取照片</strong><span id="photo-help">可一次選取多張照片</span><input id="photos" type="file" accept="image/*" aria-label="選取照片" aria-describedby="photo-help" multiple></label><p class="hint" id="picked">尚未選擇照片。</p><p class="hint">單張圖片建議不超過 20 MB；大量照片可能受到手機記憶體限制。</p></section>
-<section><h2>輸出設定</h2><div class="grid"><div class="field"><label for="maxwidth">最大邊長</label><select id="maxwidth"><option value="0">保持原尺寸</option><option value="2048">2048 px</option><option value="1600" selected>1600 px</option><option value="1200">1200 px</option><option value="800">800 px</option></select></div><div class="field"><label for="format">輸出格式</label><select id="format"><option value="image/jpeg">JPG（較小、無透明）</option><option value="image/webp">WebP（支援時）</option><option value="image/png">PNG（支援透明）</option></select></div></div><div class="field quality-field"><label for="quality">壓縮品質：<output id="qualityText">80%</output></label><input type="range" id="quality" min="30" max="100" value="80" step="5"><div class="hint">適用 JPG / WebP。PNG 通常不依品質滑桿壓縮；輸出不一定比原圖小。</div></div><div class="buttons"><button id="run" disabled>開始處理</button><button id="clear" class="secondary" type="button">清除資料</button></div><p class="status" role="status" aria-live="polite" id="status">選擇照片後就能開始。</p></section>
+<section><h2>輸出設定</h2><div class="grid"><div class="field"><label for="maxwidth">最大邊長</label><select id="maxwidth"><option value="0">保持原尺寸</option><option value="2048">2048 px</option><option value="1600" selected>1600 px</option><option value="1200">1200 px</option><option value="800">800 px</option></select></div><div class="field"><label for="format">輸出格式</label><select id="format"><option value="image/jpeg">JPG（較小、無透明）</option><option value="image/webp">WebP（支援時）</option><option value="image/png">PNG（支援透明）</option></select></div></div><div class="field quality-field"><label for="quality">壓縮品質：<output id="qualityText">80%</output></label><input type="range" id="quality" min="30" max="100" value="80" step="5"><div class="hint">適用 JPG / WebP。PNG 通常不依品質滑桿壓縮；輸出不一定比原圖小。</div></div>
+<h2 style="margin-top: 20px">照片上傳規格檢查</h2>
+<p class="hint" id="limit-help">依上方選定的輸出格式檢查每張照片。大小上限可留白，1 KB = 1,024 bytes，1 MB = 1,024 KB。</p>
+<div class="grid">
+  <div class="field">
+    <label for="size-limit">每張檔案大小上限（選填）</label>
+    <input id="size-limit" type="text" inputmode="decimal" placeholder="例如 500" aria-describedby="limit-help">
+  </div>
+  <div class="field">
+    <label for="limit-unit">上限單位</label>
+    <select id="limit-unit"><option>KB</option><option>MB</option></select>
+  </div>
+</div>
+<div class="buttons"><button id="run" disabled>開始處理</button><button id="clear" class="secondary" type="button">清除資料</button></div><p class="status" role="status" aria-live="polite" id="status">選擇照片後就能開始。</p></section>
 <section><h2>處理結果</h2><div id="results" class="files"><p class="hint">完成後，這裡會出現每張照片的下載連結。iPhone 可點開下載或透過分享選單儲存至「照片／檔案」。</p></div></section>
-<p class="foot">小步工具所 · v0.3<br>部分 HEIC 照片的讀取取決於瀏覽器支援。</p>
+<p class="foot">小步工具所 · v0.4<br>部分 HEIC 照片的讀取取決於瀏覽器支援。</p>
 </main><script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -169,16 +185,44 @@ async function processOne(file, type, maxDim, quality, version) {
     ctx.drawImage(img, 0, 0, w, h);
     img.removeAttribute('src');
     const blob = await toBlob(canvas, type, quality);
-    const actualType = blob.type || type;
-    const ext = actualType === 'image/png' ? 'png' : actualType === 'image/webp' ? 'webp' : 'jpg';
-    return {blob, w, h, ext};
+    return {blob, w, h};
   } finally {
     canvas.width = canvas.height = 0;
     img.removeAttribute('src');
   }
 }
 
-function appendResult(file, out) {
+const formats = new Map([
+  ['image/jpeg', 'JPG'],
+  ['image/webp', 'WebP'],
+  ['image/png', 'PNG']
+]);
+
+function readSizeLimit() {
+  const value = $('size-limit').value.trim();
+  if (!value) return null;
+  const unit = $('limit-unit').value;
+  const bytes = Number(value) * (unit === 'MB' ? 1048576 : 1024);
+  if (!/^(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)$/.test(value) ||
+      !Number.isFinite(bytes) || bytes <= 0 || bytes > Number.MAX_SAFE_INTEGER) {
+    throw new Error('請輸入有效的正數大小上限，例如 500 或 0.5，或留白。');
+  }
+  return {bytes, label: value + ' ' + unit};
+}
+
+function describeCheck(blob, type, limit) {
+  const actual = formats.get(blob.type) || blob.type || '未知格式';
+  const reasons = [];
+  if (blob.type !== type) reasons.push(`要求 ${formats.get(type)}，實際為 ${actual}`);
+  if (limit && blob.size > limit.bytes) reasons.push(`超過 ${limit.label} 上限`);
+  const pass = reasons.length === 0;
+  const details = `${actual}，${blob.size.toLocaleString('zh-TW')} bytes`;
+  const rule = limit ? `上限 ${limit.label}` : '無大小限制';
+  return {pass, text: pass ? `符合規格｜${details}（${rule}）` :
+    `不符合規格｜${details}。${reasons.join('；')}。`};
+}
+
+function appendResult(file, out, type, limit) {
   const url=URL.createObjectURL(out.blob);
   urls.add(url);
   const item=document.createElement('div');
@@ -196,17 +240,23 @@ function appendResult(file, out) {
   meta.className='meta';
   const pct=file.size?((out.blob.size-file.size)/file.size*100).toFixed(1):'0';
   meta.textContent=`${out.w}×${out.h} ｜ ${readableSize(file.size)} → ${readableSize(out.blob.size)} ｜ ${Number(pct)>0?'增加':'變化'} ${Math.abs(Number(pct))}%`;
+  const check = describeCheck(out.blob, type, limit);
+  const verdict = document.createElement('div');
+  verdict.className = 'spec-result';
+  verdict.dataset.pass = String(check.pass);
+  verdict.textContent = check.text;
+  const extension = formats.get(out.blob.type)?.toLowerCase() || 'bin';
   const link=document.createElement('a');
   link.className='download';
   link.href=url;
-  link.download=(file.name.replace(/\.[^.]+$/,'')||'photo')+'_little-step.'+out.ext;
+  link.download=(file.name.replace(/\.[^.]+$/,'')||'photo')+'_little-step.'+extension;
   link.textContent='下載圖片';
-  content.append(name,meta,link);
+  content.append(name,meta,verdict,link);
   item.append(thumb,content);
   results.append(item);
 }
 
-async function processBatch(files, type, maxDim, quality, version) {
+async function processBatch(files, type, maxDim, quality, version, limit) {
   let ok = 0;
   let failed = 0;
   try {
@@ -218,7 +268,7 @@ async function processBatch(files, type, maxDim, quality, version) {
       try {
         const out = await processOne(file, type, maxDim, quality, version);
         if (version !== selectionVersion) return;
-        appendResult(file, out);
+        appendResult(file, out, type, limit);
         ok++;
       } catch (error) {
         if (version !== selectionVersion) return;
@@ -238,6 +288,14 @@ async function processBatch(files, type, maxDim, quality, version) {
 run.addEventListener('click', () => {
   const files = [...picker.files];
   if (run.disabled || !files.length) return;
+  let limit;
+  try {
+    limit = readSizeLimit();
+  } catch (error) {
+    alertStatus(error.message);
+    $('size-limit').focus();
+    return;
+  }
   run.disabled = true;
   dispose();
   const version = selectionVersion;
@@ -245,7 +303,7 @@ run.addEventListener('click', () => {
   const maxDim = Number($('maxwidth').value);
   const quality = Number($('quality').value) / 100;
   alertStatus('準備處理照片…');
-  const start = () => processBatch(files, type, maxDim, quality, version);
+  const start = () => processBatch(files, type, maxDim, quality, version, limit);
   processing = processing.then(start, start);
 });
 </script></body></html>
