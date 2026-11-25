@@ -254,10 +254,12 @@ function appendResult(file, out, type, limit) {
   content.append(name,meta,verdict,link);
   item.append(thumb,content);
   results.append(item);
+  return check.pass;
 }
 
 async function processBatch(files, type, maxDim, quality, version, limit) {
-  let ok = 0;
+  let compliant = 0;
+  let noncompliant = 0;
   let failed = 0;
   try {
     for (const [index, file] of files.entries()) {
@@ -268,8 +270,8 @@ async function processBatch(files, type, maxDim, quality, version, limit) {
       try {
         const out = await processOne(file, type, maxDim, quality, version);
         if (version !== selectionVersion) return;
-        appendResult(file, out, type, limit);
-        ok++;
+        if (appendResult(file, out, type, limit)) compliant++;
+        else noncompliant++;
       } catch (error) {
         if (version !== selectionVersion) return;
         failed++;
@@ -279,7 +281,7 @@ async function processBatch(files, type, maxDim, quality, version, limit) {
         results.append(message);
       }
     }
-    alertStatus(`處理完成：成功 ${ok} 張，失敗 ${failed} 張。${ok ? '請點選個別下載連結。' : ''}`);
+    alertStatus(`處理完成：符合規格 ${compliant} 張，不符合規格 ${noncompliant} 張，轉換失敗 ${failed} 張。`);
   } finally {
     if (version === selectionVersion) run.disabled = !picker.files.length;
   }
