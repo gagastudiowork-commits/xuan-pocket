@@ -4,7 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#eef2ff">
-<title>小步影像｜小步工具所</title>
+<title>小步影像｜免費線上照片壓縮、格式轉換與上傳規格檢查</title>
+<meta name="description" content="小步影像是免費的繁體中文圖片工具，支援手機一次處理多張照片、調整尺寸、轉換 JPG／PNG／WebP，並檢查輸出是否符合自訂 KB／MB 大小上限。照片在裝置內處理，不需註冊。">
+<link rel="canonical" href="https://gagastudiowork-commits.github.io/xuan-pocket/">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="zh_TW">
+<meta property="og:title" content="小步影像｜照片壓縮與上傳規格檢查">
+<meta property="og:description" content="免費、免註冊，在手機上調整照片尺寸、格式及檢查檔案大小。">
+<meta property="og:url" content="https://gagastudiowork-commits.github.io/xuan-pocket/">
+<meta name="twitter:card" content="summary">
 <style>
 :root {
   font: 100%/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -27,6 +35,14 @@ main {
   margin-bottom: 14px;
 }
 .hero { background: linear-gradient(135deg, #e6ecff, #fff8f1); }
+.hero .intro { max-width: 62ch; }
+.guide-list { margin: 10px 0 0; padding-left: 1.5em; color: #3c4e6b; }
+.guide-list li + li { margin-top: 6px; }
+.intro-link { display: inline-block; margin-top: 8px; color: #1a3f7b; font-weight: 700; text-underline-offset: 3px; }
+.faq details { border-top: 1px solid #dce4f2; padding: 12px 0; }
+.faq summary { cursor: pointer; font-weight: 650; }
+.faq details p { margin: 8px 0 0; }
+.faq summary:focus-visible { outline: 3px solid #355dcc; outline-offset: 3px; }
 section { background: #fff; }
 .eyebrow { font-weight: 700; color: #354b79; }
 h1 { font-size: clamp(1.875rem, 5vw, 2.5rem); line-height: 1.2; margin: 8px 0; }
@@ -108,8 +124,9 @@ button:disabled { background: #e6ebf4; color: #475873; cursor: default; }
 </style>
 </head>
 <body><main>
-<header class="hero"><div class="eyebrow">小步工具所</div><h1>小步影像</h1><p>一次壓縮多張照片、調整尺寸。照片在你的裝置上處理。</p></header>
-<section><h2>選擇照片</h2><label class="drop"><strong>＋ 點一下選取照片</strong><span id="photo-help">可一次選取多張照片</span><input id="photos" type="file" accept="image/*" aria-label="選取照片" aria-describedby="photo-help" multiple></label><p class="hint" id="picked">尚未選擇照片。</p><p class="hint">單張圖片建議不超過 20 MB；大量照片可能受到手機記憶體限制。</p></section>
+<header class="hero"><div class="eyebrow">小步工具所 · 免費線上圖片工具</div><h1>小步影像</h1><p class="intro">用手機或電腦一次整理多張照片：調整尺寸、轉換 JPG／PNG／WebP，並檢查輸出檔案是否符合自訂的 KB／MB 上傳限制。免註冊，照片在你的裝置上處理。</p><a class="intro-link" href="#tool">直接開始處理照片 ↓</a></header>
+<section aria-labelledby="guide-heading"><h2 id="guide-heading">三步驟整理照片</h2><ol class="guide-list"><li>選取一張或多張照片。</li><li>設定最大邊長、輸出格式及需要的檔案大小上限。</li><li>開始處理，查看每張照片的檢查結果，再下載圖片。</li></ol><p class="hint">適合需要調整求職、報名或一般表單上傳照片的使用者；請以實際上傳網站的規格為準。</p></section>
+<section id="tool"><h2>選擇照片</h2><label class="drop"><strong>＋ 點一下選取照片</strong><span id="photo-help">可一次選取多張照片</span><input id="photos" type="file" accept="image/*" aria-label="選取照片" aria-describedby="photo-help" multiple></label><p class="hint" id="picked">尚未選擇照片。</p><p class="hint">單張圖片建議不超過 20 MB；大量照片可能受到手機記憶體限制。</p></section>
 <section><h2>輸出設定</h2><div class="grid"><div class="field"><label for="maxwidth">最大邊長</label><select id="maxwidth"><option value="0">保持原尺寸</option><option value="2048">2048 px</option><option value="1600" selected>1600 px</option><option value="1200">1200 px</option><option value="800">800 px</option></select></div><div class="field"><label for="format">輸出格式</label><select id="format"><option value="image/jpeg">JPG（較小、無透明）</option><option value="image/webp">WebP（支援時）</option><option value="image/png">PNG（支援透明）</option></select></div></div><div class="field quality-field"><label for="quality">壓縮品質：<output id="qualityText">80%</output></label><input type="range" id="quality" min="30" max="100" value="80" step="5"><div class="hint">適用 JPG / WebP。PNG 通常不依品質滑桿壓縮；輸出不一定比原圖小。</div></div>
 <h2 style="margin-top: 20px">照片上傳規格檢查</h2>
 <p class="hint" id="limit-help">依上方選定的輸出格式檢查每張照片。大小上限可留白，1 KB = 1,024 bytes，1 MB = 1,024 KB。</p>
@@ -125,7 +142,13 @@ button:disabled { background: #e6ebf4; color: #475873; cursor: default; }
 </div>
 <div class="buttons"><button id="run" disabled>開始處理</button><button id="clear" class="secondary" type="button">清除資料</button></div><p class="status" role="status" aria-live="polite" id="status">選擇照片後就能開始。</p></section>
 <section><h2>處理結果</h2><div id="results" class="files"><p class="hint">完成後，這裡會出現每張照片的下載連結。iPhone 可點開下載或透過分享選單儲存至「照片／檔案」。</p></div></section>
-<p class="foot">小步工具所 · v0.4<br>部分 HEIC 照片的讀取取決於瀏覽器支援。</p>
+<section class="faq" aria-labelledby="faq-heading"><h2 id="faq-heading">常見問題與限制</h2>
+<details><summary>設定了大小上限，會自動壓縮到指定 KB 嗎？</summary><p>不會。目前的大小上限只用來檢查處理結果。若超過限制，可自行降低最大邊長或 JPG／WebP 壓縮品質後重新處理。</p></details>
+<details><summary>顯示「符合規格」就保證上傳成功嗎？</summary><p>不保證。工具只核對所選輸出格式及設定的檔案大小上限；部分網站另要求固定像素、長寬比例、證件照背景或人像位置，須另行確認。</p></details>
+<details><summary>照片會傳送到伺服器嗎？</summary><p>此版本使用瀏覽器在你的裝置上處理照片，無需帳號或上傳圖片到小步影像的伺服器；請使用可信任的瀏覽器及裝置。</p></details>
+<details><summary>所有手機照片都能處理嗎？</summary><p>不一定。HEIC 等格式是否能讀取，以及可處理的照片數量與尺寸，取決於瀏覽器和裝置記憶體。處理前請保留原始照片。</p></details>
+</section>
+<p class="foot">小步工具所 · v0.4.1<br>免費公開試用｜本工具不保證符合各申請機關的完整審核規範。</p>
 </main><script>
 'use strict';
 const $ = id => document.getElementById(id);
